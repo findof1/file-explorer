@@ -5,7 +5,7 @@
 #include <assert.h>
 
 // returns amount of files found; returns -1 when the directory does not exist
-int listDirectoryContents(const char *directory, File *filesOut, int filesOutLength)
+int listDirectoryContents(const char *directory, File *filesOut, const int filesOutLength, const int start)
 {
   // filesOutLength has to be more than 0 or we can't put any files in filesOut
   assert(filesOutLength > 0 && "listDirectoryContents failed");
@@ -21,6 +21,19 @@ int listDirectoryContents(const char *directory, File *filesOut, int filesOutLen
   if (fileFinder == INVALID_HANDLE_VALUE)
   {
     return -1;
+  }
+
+  for (int i = 0; i < start; i++)
+  {
+    if (FindNextFile(fileFinder, &winFile) == 0)
+    {
+      return 0;
+    }
+    bool hasValidName = strcmp(winFile.cFileName, ".") != 0 && strcmp(winFile.cFileName, "..") != 0;
+    if (!hasValidName)
+    {
+      i--;
+    }
   }
 
   int i = 0;
@@ -73,9 +86,42 @@ bool moveUpDirectory(char *path)
 
   if (lastSlashIndex == -1)
   {
-    return false;
+    return true;
   }
 
   path[lastSlashIndex] = '\0';
   return true;
+}
+
+// returns amount of files in the directory; returns -1 when the directory does not exist
+int getDirectoryFileAmount(const char *directory)
+{
+  WIN32_FIND_DATA winFile;
+  HANDLE fileFinder = NULL;
+  char strPath[MAX_PATH];
+
+  assert(sprintf(strPath, "%s\\*.*", directory) >= 0 && "sprintf failed");
+
+  fileFinder = FindFirstFile(strPath, &winFile);
+
+  if (fileFinder == INVALID_HANDLE_VALUE)
+  {
+    return -1;
+  }
+
+  int i = 0;
+  do
+  {
+    i++;
+  } while (FindNextFile(fileFinder, &winFile) != 0);
+
+  assert(FindClose(fileFinder) != 0 && "FindClose failed");
+
+  return i;
+}
+
+void moveIntoDirectory(char *currentDirectory, const char *directoryName)
+{
+  strcat(currentDirectory, "\\");
+  strcat(currentDirectory, directoryName);
 }
