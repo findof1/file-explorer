@@ -74,7 +74,7 @@ bool moveUpDirectory(char *path)
     return false;
   }
 
-  // gets the index of the last \\ so it can remove that and everything after it
+  // gets the index of the last \ so it can remove that and everything after it
   int lastSlashIndex = -1;
   for (int i = 0; i < (int)pathLength; i++)
   {

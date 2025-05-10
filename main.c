@@ -5,6 +5,7 @@
 #include <assert.h>
 #include <windows.h>
 #include "fileUtils.h"
+#define MAX_FILES 23
 
 /*
 Note:
@@ -14,6 +15,16 @@ cbreak() - there are no error conditions
 noecho() - there are no error conditions
 keypad() - there are no error conditions
 */
+
+typedef struct
+{
+  int filesInCurrentDirectory;
+  int currentFiles;
+  File files[MAX_FILES];
+  int scrollPosition;
+  int cursorY;
+  char currentDirectory[MAX_PATH];
+} AppData;
 
 void initNcurses()
 {
@@ -32,113 +43,115 @@ WINDOW *createWindow()
 }
 
 // note: cursorY can be between 0 and amountOfFiles
-void drawWindow(WINDOW *window, const File *files, int amountOfFiles, char *currentDirectory, int cursorY)
+void drawWindow(WINDOW *window, AppData *appData)
 {
   assert(wclear(window) == OK && "wclear failed");
   assert(box(window, 0, 0) == OK && "box failed");
 
-  assert(mvwprintw(window, 1, 2, "%s", currentDirectory) == OK && "mvwprintw failed");
+  assert(mvwprintw(window, 1, 2, "%s", appData->currentDirectory) == OK && "mvwprintw failed");
 
-  for (int i = 0; i < amountOfFiles; i++)
+  for (int i = 0; i < appData->currentFiles; i++)
   {
-    assert(mvwprintw(window, 3 + i, 2, "%s", files[i].filename) == OK && "mvwprintw failed");
+    assert(mvwprintw(window, 3 + i, 2, "%s", appData->files[i].filename) == OK && "mvwprintw failed");
   }
 
-  wmove(window, cursorY + 3, 1);
+  wmove(window, appData->cursorY + 3, 1);
 
   refresh();
   assert(wrefresh(window) == OK && "wrefresh failed");
 }
 
-void updateFileVariables(int *filesInCurrentDirectory, int *currentFiles, File *files, const int maxFiles, const int scrollPosition, char *currentDirectory)
+void updateFileVariables(AppData *data)
 {
-  *filesInCurrentDirectory = getDirectoryFileAmount(currentDirectory);
-  assert(*filesInCurrentDirectory != -1 && "Invalid dir passed into getDirectoryFileAmount");
+  data->filesInCurrentDirectory = getDirectoryFileAmount(data->currentDirectory);
+  assert(data->filesInCurrentDirectory != -1 && "Invalid dir passed into getDirectoryFileAmount");
 
-  *currentFiles = listDirectoryContents(currentDirectory, files, maxFiles, scrollPosition * (maxFiles + 1));
-  assert(*currentFiles != -1 && "Invalid dir passed into listDirectoryContents");
+  data->currentFiles = listDirectoryContents(data->currentDirectory, data->files, MAX_FILES, data->scrollPosition * (MAX_FILES + 1));
+  assert(data->currentFiles != -1 && "Invalid dir passed into listDirectoryContents");
+}
+
+void handleInput(const int keyPressed, AppData *appData)
+{
+  if (keyPressed == KEY_BACKSPACE)
+  {
+    appData->scrollPosition = 0;
+    appData->cursorY = 0;
+
+    assert(moveUpDirectory(appData->currentDirectory) == true && "Invalid dir passed into moveUpDirectory");
+    updateFileVariables(appData);
+  }
+  if (keyPressed == KEY_UP || keyPressed == 'w')
+  {
+    (appData->cursorY)--;
+    if (appData->cursorY < 0)
+    {
+      if (appData->scrollPosition > 0)
+      {
+        (appData->scrollPosition)--;
+        appData->cursorY = MAX_FILES - 1;
+
+        updateFileVariables(appData);
+      }
+      else
+      {
+        appData->cursorY = 0;
+      }
+    }
+  }
+  if (keyPressed == KEY_DOWN || keyPressed == 's')
+  {
+    (appData->cursorY)++;
+    if (appData->cursorY >= appData->currentFiles)
+    {
+      if ((appData->filesInCurrentDirectory / MAX_FILES) - appData->scrollPosition > 0)
+      {
+        (appData->scrollPosition)++;
+        appData->cursorY = 0;
+
+        updateFileVariables(appData);
+      }
+      else
+      {
+        appData->cursorY = appData->currentFiles - 1;
+      }
+    }
+  }
+  // 10 is KEY_ENTER, ncurses KEY_ENTER is a different value that doesn't work for me
+  if (keyPressed == 10 && appData->files[appData->cursorY].isDirectory)
+  {
+    moveIntoDirectory(appData->currentDirectory, appData->files[appData->cursorY].filename);
+
+    appData->scrollPosition = 0;
+    appData->cursorY = 0;
+
+    updateFileVariables(appData);
+  }
 }
 
 int main()
 {
   initNcurses();
 
-  int scrollPosition = 0;
-  int cursorY = 0;
-
-  const int maxFiles = 23;
-  File files[maxFiles];
-  int currentFiles = 0;
-  int filesInCurrentDirectory = 0;
-
-  char currentDirectory[MAX_PATH] = "C:\\Users\\lucas\\OneDrive\\Desktop\\Coding\\C\\file-explorer";
+  AppData appData;
+  appData.currentFiles = 0;
+  appData.filesInCurrentDirectory = 0;
+  appData.cursorY = 0;
+  appData.scrollPosition = 0;
+  strcpy(appData.currentDirectory, "C:\\Users\\lucas\\OneDrive\\Desktop\\Coding\\C\\file-explorer");
 
   WINDOW *window = createWindow();
 
-  updateFileVariables(&filesInCurrentDirectory, &currentFiles, files, maxFiles, scrollPosition, currentDirectory);
+  updateFileVariables(&appData);
 
   int keyPressed = -1;
 
   do
   {
-    drawWindow(window, files, currentFiles, currentDirectory, cursorY);
+    drawWindow(window, &appData);
 
     keyPressed = wgetch(window);
 
-    if (keyPressed == KEY_BACKSPACE)
-    {
-      scrollPosition = 0;
-      cursorY = 0;
-
-      assert(moveUpDirectory(currentDirectory) == true && "Invalid dir passed into moveUpDirectory");
-      updateFileVariables(&filesInCurrentDirectory, &currentFiles, files, maxFiles, scrollPosition, currentDirectory);
-    }
-    if (keyPressed == KEY_UP || keyPressed == 'w')
-    {
-      cursorY--;
-      if (cursorY < 0)
-      {
-        if (scrollPosition > 0)
-        {
-          scrollPosition--;
-          cursorY = maxFiles - 1;
-
-          updateFileVariables(&filesInCurrentDirectory, &currentFiles, files, maxFiles, scrollPosition, currentDirectory);
-        }
-        else
-        {
-          cursorY = 0;
-        }
-      }
-    }
-    if (keyPressed == KEY_DOWN || keyPressed == 's')
-    {
-      cursorY++;
-      if (cursorY >= currentFiles)
-      {
-        if ((filesInCurrentDirectory / maxFiles) - scrollPosition > 0)
-        {
-          scrollPosition++;
-          cursorY = 0;
-
-          updateFileVariables(&filesInCurrentDirectory, &currentFiles, files, maxFiles, scrollPosition, currentDirectory);
-        }
-        else
-        {
-          cursorY = currentFiles - 1;
-        }
-      }
-    }
-    // 10 is KEY_ENTER, ncurses KEY_ENTER is a different value that doesn't work for me
-    if (keyPressed == 10 && files[cursorY].isDirectory)
-    {
-      moveIntoDirectory(currentDirectory, files[cursorY].filename);
-
-      scrollPosition = 0;
-      cursorY = 0;
-
-      updateFileVariables(&filesInCurrentDirectory, &currentFiles, files, maxFiles, scrollPosition, currentDirectory);
-    }
+    handleInput(keyPressed, &appData);
 
   } while (keyPressed != 27); // 27 is KEY_ESCAPE, but there is no macro for it in ncurses for some reason
 
