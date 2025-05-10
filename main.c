@@ -72,59 +72,85 @@ void updateFileVariables(AppData *data)
 
 void handleInput(const int keyPressed, AppData *appData)
 {
-  if (keyPressed == KEY_BACKSPACE)
+
+  switch (keyPressed)
+  {
+  case KEY_BACKSPACE:
   {
     appData->scrollPosition = 0;
     appData->cursorY = 0;
 
     assert(moveUpDirectory(appData->currentDirectory) == true && "Invalid dir passed into moveUpDirectory");
     updateFileVariables(appData);
+    break;
   }
-  if (keyPressed == KEY_UP || keyPressed == 'w')
-  {
-    (appData->cursorY)--;
-    if (appData->cursorY < 0)
-    {
-      if (appData->scrollPosition > 0)
-      {
-        (appData->scrollPosition)--;
-        appData->cursorY = MAX_FILES - 1;
 
-        updateFileVariables(appData);
-      }
-      else
-      {
-        appData->cursorY = 0;
-      }
-    }
-  }
-  if (keyPressed == KEY_DOWN || keyPressed == 's')
-  {
-    (appData->cursorY)++;
-    if (appData->cursorY >= appData->currentFiles)
-    {
-      if ((appData->filesInCurrentDirectory / MAX_FILES) - appData->scrollPosition > 0)
-      {
-        (appData->scrollPosition)++;
-        appData->cursorY = 0;
-
-        updateFileVariables(appData);
-      }
-      else
-      {
-        appData->cursorY = appData->currentFiles - 1;
-      }
-    }
-  }
   // 10 is KEY_ENTER, ncurses KEY_ENTER is a different value that doesn't work for me
-  if (keyPressed == 10 && appData->files[appData->cursorY].isDirectory)
+  case 10:
   {
+    if (!appData->files[appData->cursorY].isDirectory)
+    {
+      break;
+    }
+
     moveIntoDirectory(appData->currentDirectory, appData->files[appData->cursorY].filename);
 
     appData->scrollPosition = 0;
     appData->cursorY = 0;
 
     updateFileVariables(appData);
+    break;
+  }
+
+  case KEY_UP:
+  case 'w':
+  {
+    appData->cursorY--;
+    if (appData->cursorY >= 0)
+    {
+      break;
+    }
+
+    bool canScrollUp = appData->scrollPosition > 0;
+    if (canScrollUp)
+    {
+      appData->scrollPosition--;
+      appData->cursorY = MAX_FILES - 1;
+
+      updateFileVariables(appData);
+    }
+    else
+    {
+      appData->cursorY = 0;
+    }
+
+    break;
+  }
+
+  case KEY_DOWN:
+  case 's':
+  {
+    appData->cursorY++;
+    if (appData->cursorY < appData->currentFiles)
+    {
+      break;
+    }
+
+    bool canScrollDown = (appData->filesInCurrentDirectory / MAX_FILES) - appData->scrollPosition > 0;
+    if (canScrollDown)
+    {
+      appData->scrollPosition++;
+      appData->cursorY = 0;
+
+      updateFileVariables(appData);
+    }
+    else
+    {
+      appData->cursorY = appData->currentFiles - 1;
+    }
+
+    break;
+  }
   }
 }
 
