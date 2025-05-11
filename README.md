@@ -45,7 +45,7 @@ cmake --build .
 5. Run the program:
 
 ```sh
-./file-explorer
+./fileExplorer
 ```
 
 ## Project Structure
