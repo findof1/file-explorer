@@ -45,7 +45,6 @@ int listDirectoryContents(const char *directory, File *filesOut, const int files
     bool hasValidName = strcmp(winFile.cFileName, ".") != 0 && strcmp(winFile.cFileName, "..") != 0;
     if (hasValidName)
     {
-
       if (winFile.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
       {
         filesOut[i].isDirectory = true;
